@@ -6,9 +6,10 @@ INFORM_VARIABLE_GETTING = True # Wethet the console should print when variables 
 enabled: bool = False # Is the Main Loop active ? /!\ To start the main loop, use start_loop() instead)
 
 start_prompt: str = "Enter a command : " # The message shown by input() at the start of an iteration (indicate to the user that he can type a command)
-end_prompt: str = "" # The string printed at the end of the iteration ()
-command_error_prompt: str = f"{ERROR_PREFIX} Unrecognised command : %s"
+end_prompt: str = "" # The string printed at the end of the iteration (), empty for no prompt
+command_error_prompt: str = f"{ERROR_PREFIX} Unrecognised command : `%s`"
 
+commands: "list[Command]" = [] # The array containing all commands objects (defaults : SET_VARIABLE_COMMAND)
 stop_cmd: str = "stop" # The command's string wich stop the loop
 
 pre_funcs: list[callable] = [] # Functions called at the start of the iteration
@@ -16,7 +17,16 @@ input_funcs: list[callable] = [str.lower] # Functions called after each input fr
 spliter_function: list[callable] = []
 post_funcs: list[callable] = [] # Functions called at the end of the iteration
 
+
 class Command():
+    """
+    A command for the console loop.
+    -------------------------------------------------------------
+    name : The string to write in the console to call the command.
+    handler : The function to call when the command is used.
+    arg_count : The number of argument that the handler function takes.
+    """
+
     def __init__(self, name: str, handler: "function", arg_count: int) -> None:
         self.name = name
         self.handler = handler
@@ -36,7 +46,9 @@ class Command():
 
         return score
 
+
 _cmd_variables: dict[str:any] = {}
+
 def set_variable_cmd(name: str, var_type: str, value: str) -> int:
     match var_type:
         case "str": pass
@@ -57,8 +69,9 @@ def set_variable_cmd(name: str, var_type: str, value: str) -> int:
     feedback += f"{value}"
 
     print(feedback)
-SET_VARIABLE_COMMAND = Command("set", set_variable_cmd, 3)
 
+SET_VARIABLE_COMMAND = Command("set", set_variable_cmd, 3)
+commands.append(SET_VARIABLE_COMMAND)
 
 def get_variable(name: str) -> str:
     if not name in _cmd_variables:
@@ -74,13 +87,11 @@ def handle_var(split_part: str) -> str:
     else:
         return split_part
 
+
 def pop_split(liste_of_split: list[str]) -> str:
     return handle_var(liste_of_split.pop(0))
 
-commands: list[Command] = [SET_VARIABLE_COMMAND] # The array containing all commands objects
 
-# FIXME zazeazeazeazedsqdaaaaaa
-# TODO FIXME
 def start_loop() -> None:
     """Start the main loop of the console."""
 
