@@ -1,3 +1,5 @@
+from traceback import print_exc
+
 ERROR_PREFIX = "[ERROR]"
 WARN_PREFIX = "[WARN]"
 VARIABLE_GETTER_PREFIX = "$"
@@ -117,30 +119,42 @@ def start_loop() -> None:
 
         while splited:
             current_cmd = pop_split(splited)
-            best_score = 0
             found: None|function = None
 
+            if splited and splited[0] == "=":
+                found = SET_VARIABLE_COMMAND
+                splited[0] = current_cmd
+                current_cmd = "set"
+            else:
+                best_score = 0
 
-            if current_cmd == stop_cmd:
-                enabled = False
-                break
-
-            for command in commands:
-                current_score = command.get_matching_score(current_cmd)
-                if current_score == -1:
-                    found = command
+                if current_cmd == stop_cmd:
+                    enabled = False
                     break
-                elif current_score > best_score:
-                    found = command
-                    best_score = current_score
-                elif current_score == best_score:
-                    found = None
+
+                for command in commands:
+                    current_score = command.get_matching_score(current_cmd)
+                    if current_score == -1:
+                        found = command
+                        break
+                    elif current_score > best_score:
+                        found = command
+                        best_score = current_score
+                    elif current_score == best_score:
+                        found = None
 
             if found:
-                found.handler(*(pop_split(splited) for _ in range(found.arg_count)))
-            elif splited[0] == "=":
-                splited.pop(0)
-                SET_VARIABLE_COMMAND.handler(current_cmd, *(pop_split(splited) for _ in range(2)))
+                if len(splited) < found.arg_count:
+                    print(ERROR_PREFIX, f"There was not enough argument given to `{command.name}` ({len(splited)} given but {found.arg_count} required)")
+
+                try:
+                    found.handler(*(pop_split(splited) for _ in range(found.arg_count)))
+                except Exception as error:
+                    print(ERROR_PREFIX, "A python error occured :")
+                    print("═" * 30)
+                    print_exc()
+                    print("═" * 30)
+
             elif current_cmd in _cmd_variables:
                 print(current_cmd, "=", _cmd_variables[current_cmd])
             else:
