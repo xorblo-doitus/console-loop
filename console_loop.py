@@ -3,27 +3,31 @@ from traceback import print_exc
 ERROR_PREFIX = "[ERROR]"
 WARN_PREFIX = "[WARN]"
 VARIABLE_GETTER_PREFIX = "$"
-INFORM_VARIABLE_GETTING = True # Wethet the console should print when variables get replaced by their value int commands
 
 enabled: bool = False # Is the Main Loop active ? /!\ To start the main loop, use start_loop() instead)
 
+launch_loop_prompt: str = "\nInitializing console loop..."
 start_prompt: str = "Enter a command : " # The message shown by input() at the start of an iteration (indicate to the user that he can type a command)
-end_prompt: str = "" # The string printed at the end of the iteration (), empty for no prompt
+end_prompt: str = "─" * 40 # The string printed at the end of the iteration (), empty for no prompt
 command_error_prompt: str = f"{ERROR_PREFIX} Unrecognised command : `%s`"
 
 commands: "list[Command]" = [] # The array containing all commands objects (defaults : SET_VARIABLE_COMMAND)
-stop_cmd: str = "stop" # The command's string wich stop the loop
+stop_cmd: str = "stop" # The command's string wich stop the loop. (Autocomplete doesn't worh on this command)
+stop_on_empty_input: bool = True # Whether or not stopping the console loop when the input is empty. (for fast closing)
 
 pre_funcs: list[callable] = [] # Functions called at the start of the iteration
 input_funcs: list[callable] = [str.lower] # Functions called after each input from the user, must take the input as first argument and return the modified input
 spliter_function: list[callable] = []
 post_funcs: list[callable] = [] # Functions called at the end of the iteration
 
+autocomplete: bool= True # Whether or not the console shall autocomplete commands (ex : turn `s` into `set`). Note that if two commands match the same amount of letters in a row at the beginning of the command, none of them will be chosen.
+inform_autocomplete: bool = True # Print when a command is autocompleted.
+inform_variable_replacement: bool = True # Print when a `$variable_name` got replaced by the value of the variable.
 
 class Command():
     """
     A command for the console loop.
-    -------------------------------------------------------------
+    ───────────────────────────────────────────────────────────────────
     name : The string to write in the console to call the command.
     handler : The function to call when the command is used.
     arg_count : The number of argument that the handler function takes.
@@ -44,7 +48,8 @@ class Command():
             if letter == self.name[i]:
                 score += 1
             else:
-                return score
+                # if it start to unmatch letters, then it's not this command (ex : st != set)
+                return 0
 
         return score
 
@@ -77,10 +82,11 @@ commands.append(SET_VARIABLE_COMMAND)
 
 def get_variable(name: str) -> str:
     if not name in _cmd_variables:
-        print(ERROR_PREFIX, name, 'variable is not defined ! Returned "{name}"')
+        print(ERROR_PREFIX, name, f'variable is not defined ! Returned "{name}"')
         return name
 
-    print("$" + name, "→", str(_cmd_variables[name]))
+    if inform_variable_replacement:
+        print("$" + name, "→", str(_cmd_variables[name]))
     return str(_cmd_variables[name])
 
 def handle_var(split_part: str) -> str:
@@ -100,12 +106,18 @@ def start_loop() -> None:
     global enabled
     enabled = True
 
+    print(launch_loop_prompt)
+
     # Main Loop
     while enabled:
         # Calling all pre-iteration functions
         for function in pre_funcs: function()
 
         inputed = input(start_prompt)
+
+        if not inputed:
+            enabled = False
+            break
 
         # Calling all input modifying functions
         for function in input_funcs: inputed = function(inputed)
@@ -120,14 +132,14 @@ def start_loop() -> None:
         while splited:
             current_cmd = pop_split(splited)
             found: None|function = None
+            best_score: int = 0
 
             if splited and splited[0] == "=":
+                best_score = -1
                 found = SET_VARIABLE_COMMAND
                 splited[0] = current_cmd
                 current_cmd = "set"
             else:
-                best_score = 0
-
                 if current_cmd == stop_cmd:
                     enabled = False
                     break
@@ -135,26 +147,33 @@ def start_loop() -> None:
                 for command in commands:
                     current_score = command.get_matching_score(current_cmd)
                     if current_score == -1:
+                        best_score = -1
                         found = command
                         break
-                    elif current_score > best_score:
-                        found = command
-                        best_score = current_score
-                    elif current_score == best_score:
-                        found = None
+                    elif autocomplete:
+                        if current_score > best_score:
+                            found = command
+                            best_score = current_score
+                        elif current_score == best_score:
+                            found = None
 
             if found:
+                if best_score != -1 and inform_autocomplete:
+                    print(f"`{current_cmd}` → `{command.name}`")
+
                 if len(splited) < found.arg_count:
                     print(ERROR_PREFIX, f"There was not enough argument given to `{command.name}` ({len(splited)} given but {found.arg_count} required)")
+                    splited.clear()
+                    break
 
-                try:
-                    found.handler(*(pop_split(splited) for _ in range(found.arg_count)))
-                except Exception as error:
-                    print(ERROR_PREFIX, "A python error occured :")
-                    print("═" * 30)
-                    print_exc()
-                    print("═" * 30)
-
+                else:
+                    try:
+                        found.handler(*(pop_split(splited) for _ in range(found.arg_count)))
+                    except Exception as error:
+                        print(ERROR_PREFIX, "A python error occured :")
+                        print("═" * 30)
+                        print_exc()
+                        print("═" * 30)
             elif current_cmd in _cmd_variables:
                 print(current_cmd, "=", _cmd_variables[current_cmd])
             else:
