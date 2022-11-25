@@ -159,10 +159,10 @@ def start_loop() -> None:
 
             if found:
                 if best_score != -1 and inform_autocomplete:
-                    print(f"`{current_cmd}` → `{command.name}`")
+                    print(f"`{current_cmd}` → `{found.name}`")
 
                 if len(splited) < found.arg_count:
-                    print(ERROR_PREFIX, f"There was not enough argument given to `{command.name}` ({len(splited)} given but {found.arg_count} required)")
+                    print(ERROR_PREFIX, f"There was not enough argument given to `{found.name}` ({len(splited)} given but {found.arg_count} required)")
                     splited.clear()
                     break
 
@@ -179,11 +179,11 @@ def start_loop() -> None:
             else:
                 print(command_error_prompt % current_cmd)
 
-        if end_prompt:
-            print(end_prompt)
-
         # Calling all post-iteration functions
         for function in post_funcs: function()
+
+        if end_prompt:
+            print(end_prompt)
 
 
 # Start automatically the loop if not loaded as a module
