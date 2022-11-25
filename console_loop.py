@@ -24,6 +24,8 @@ autocomplete: bool= True # Whether or not the console shall autocomplete command
 inform_autocomplete: bool = True # Print when a command is autocompleted.
 inform_variable_replacement: bool = True # Print when a `$variable_name` got replaced by the value of the variable.
 
+globals_access: list[dict] = [globals()] # A list of globals scopes the module has access to, append this with globals(). You can sort it to make priority between globals (this is scanned from idx 0 to len())
+add_globals = globals_access.append # A shortcut for console_loop.globals_access.append()
 class Command():
     """
     A command for the console loop.
@@ -54,14 +56,41 @@ class Command():
         return score
 
 
-_cmd_variables: dict[str:any] = {}
+def void_cmd(_: any) -> None:
+    """Don't do anything. Can be used to trigger a command argument handling without using it in a command."""
+    pass
 
-def set_variable_cmd(name: str, var_type: str, value: str) -> int:
+VOID_COMMAND = Command("dummy", void_cmd, 1)
+commands.append(VOID_COMMAND)
+
+
+def print_cmd(to_show: any) -> None:
+    """Print the given argument like print(), but directly from the command line."""
+    print("[print]", to_show)
+
+PRINT_COMMAND = Command("print", print_cmd, 1)
+commands.append(PRINT_COMMAND)
+
+
+_cmd_variables: dict[str:any] = {} # A dictionnary storing all variables created from commands.
+
+def set_variable_cmd(name: str, var_type: str, value: str) -> None:
     match var_type:
         case "str": pass
         case "int": value = int(value)
         case "float": value = float(value)
+        case "bool": value = False if value == "0" or value == "False" or value == "F" or value == "" else True
         case other: print(ERROR_PREFIX, 'at "set" : Unsupported type :', other)
+
+    for access in globals_access:
+        if name in access:
+            if type(value) == type(access[name]):
+                print(f"Global variable `{name}` at `{access['__name__']}` changed from {access[name]} to {value}")
+            else:
+                print(f"Global variable `{name}` at `{access['__name__']}` changed from {type(access[name]).__name__} {access[name]} to `{var_type}` {value}.")
+
+            access[name] = value
+            return
 
     feedback = "variable "
     if _cmd_variables.get(name, None):
@@ -81,6 +110,11 @@ SET_VARIABLE_COMMAND = Command("set", set_variable_cmd, 3)
 commands.append(SET_VARIABLE_COMMAND)
 
 def get_variable(name: str) -> str:
+    for access in globals_access:
+        if name in access:
+            print("$" + name, "→", str(access[name]))
+            return str(access[name])
+
     if not name in _cmd_variables:
         print(ERROR_PREFIX, name, f'variable is not defined ! Returned "{name}"')
         return name
