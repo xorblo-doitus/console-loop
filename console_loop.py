@@ -149,7 +149,7 @@ def start_loop() -> None:
 
         inputed = input(start_prompt)
 
-        if not inputed:
+        if not inputed and stop_on_empty_input:
             enabled = False
             break
 
